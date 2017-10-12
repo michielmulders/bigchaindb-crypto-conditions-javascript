@@ -1,8 +1,110 @@
-import http from 'http';
+// CRYPTO CONDITIONS EXAMPLE:
+// - utils js-driver: https://github.com/bigchaindb/js-bigchaindb-driver/blob/master/src/transaction/utils/ccJsonLoad.js
+// - Python example (outdated): https://docs.bigchaindb.com/projects/server/en/v0.6.0/drivers-clients/python-server-api-examples.html#introduction
+// - Handcrafted Python crypto-conditions example: https://docs.bigchaindb.com/projects/py-driver/en/latest/handcraft.html
+// - Kyber cryptoconditions complex example: https://github.com/bigchaindb/kyber/blob/master/tutorials/04_cryptoconditions_transactions/cryptoconditions_transactions.py
+// - Crypto conditions JS (five-bells IPL) (more examples I think): https://github.com/interledgerjs/five-bells-condition
+// - Five-bells on NPM: https://www.npmjs.com/package/five-bells-condition
 
-http.createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end('Hello World\n');
-}).listen(1337, '127.0.0.1');
 
-console.log('Server running at http://127.0.0.1:1337/');
+import * as driver from 'bigchaindb-driver'
+import * as cc from 'five-bells-condition'
+import base58 from 'bs58'
+
+const API_PATH = 'https://test.ipdb.io/api/v1/'
+const conn = new driver.Connection(API_PATH, { 
+  app_id: 'dfa777d5',
+  app_key: '7208ea9bf95b43ce3a95f7c727e33fb9'
+})
+
+// Create family members
+const alice = new driver.Ed25519Keypair()
+const bob = new driver.Ed25519Keypair()
+const carly = new driver.Ed25519Keypair()
+
+console.log('Alice: ', alice.publicKey)
+console.log('Bob: ', bob.publicKey)
+console.log('Carly: ', carly.publicKey)
+
+// Define the asset to store, in this example
+// we store a bicycle with its serial number and manufacturer
+const assetdata = {
+  'bicycle': {
+    'serial_number': 'cde553239qf65',
+    'manufacturer': 'Bicycle Inc.',
+  }
+}
+
+// Metadata contains information about the transaction itself
+// (can be `null` if not needed)
+// E.g. the bicycle is fabricated on earth
+const metadata = {'planet': 'earth'}
+
+// Construct a transaction payload
+const txCreateAliceSimple = driver.Transaction.makeCreateTransaction(
+  assetdata,
+  metadata,
+
+  // A transaction needs an output
+  [ 
+    driver.Transaction.makeOutput(driver.Transaction.makeEd25519Condition(alice.publicKey))
+  ],
+  alice.publicKey
+)
+
+// Sign the transaction with private keys of Alice to fulfill it
+const txCreateAliceSimpleSigned = driver.Transaction.signTransaction(txCreateAliceSimple, alice.privateKey)
+
+conn.postTransaction(txCreateAliceSimpleSigned)
+  // Check status of transaction every 0.5 seconds until fulfilled
+  .then(() => (conn.pollStatusAndFetchTransaction(txCreateAliceSimpleSigned.id)))
+
+  // Create transfer to Carly with specific condition (treshold 2: so 2 out of 3 family memebers (alice, bob, carly) have to sign to sell the bike)
+  .then(() => {
+      
+    const thresholdFulfillment = new cc.ThresholdSha256()
+
+    // Possible fulfillment from Alice: 
+    const ed25519FulfillmentAlice = new cc.Ed25519Sha256()
+    ed25519FulfillmentAlice.setPublicKey(new Buffer(base58.decode(alice.publicKey)))
+    console.log('Fulfillment uri Alice: ', ed25519FulfillmentAlice.getConditionUri())
+    thresholdFulfillment.addSubfulfillmentUri(ed25519FulfillmentAlice.getConditionUri())
+
+    // Possible fulfillment from Bob: 
+    const ed25519FulfillmentBob = new cc.Ed25519Sha256()
+    ed25519FulfillmentBob.setPublicKey(new Buffer(base58.decode(alice.publicKey)))
+    console.log('Fulfillment uri Bob: ', ed25519FulfillmentBob.getConditionUri())
+    thresholdFulfillment.addSubfulfillmentUri(ed25519FulfillmentBob.getConditionUri())
+
+    // Possible fulfillment from Carly: 
+    const ed25519FulfillmentCarly = new cc.Ed25519Sha256()
+    ed25519FulfillmentCarly.setPublicKey(new Buffer(base58.decode(alice.publicKey)))
+    console.log('Fulfillment uri Carly: ', ed25519FulfillmentCarly.getConditionUri())
+    thresholdFulfillment.addSubfulfillmentUri(ed25519FulfillmentCarly.getConditionUri())
+
+
+    thresholdFulfillment.setThreshold(2) // defaults to subconditions.length 
+    console.log(thresholdFulfillment.getConditionUri())
+
+    // ADD CONDITION TO TRANSFER TX
+    const txTransferCarly = driver.Transaction.makeTransferTransaction(
+      txCreateAliceSimpleSigned,
+      {price: '100 euro'},
+      [
+        driver.Transaction.makeOutput(driver.Transaction.makeEd25519Condition(carly.publicKey))
+      ],
+      0)
+
+    // Sign with alice's private key
+    let txTransferCarlySigned = driver.Transaction.signTransaction(txTransferCarly, alice.privateKey)
+    console.log('Posting signed transaction: ', txTransferCarlySigned)
+
+    // Post and poll status
+    return conn.postTransaction(txTransferCarlySigned)
+  })
+  .then(res => {
+    console.log('Response from BDB server:', res)
+    console.log('\n\n\nReached ENDDDDDDD')
+    return conn.pollStatusAndFetchTransaction(res.id)
+  })
+  .catch(err => console.log(err))
