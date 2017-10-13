@@ -1,4 +1,5 @@
 // MULTIPLe OWNERS EXAMPLe: https://docs.bigchaindb.com/projects/py-driver/en/latest/advanced-usage.html#multiple-owners
+// Result output: https://test.ipdb.io/api/v1/transactions/4378cbf9f5ce1fbcefd18bfa527e7f0247894ec53295004d220eca8ed3ed20ef
 
 import * as driver from 'bigchaindb-driver'
 import * as cc from 'five-bells-condition'
@@ -46,6 +47,7 @@ const txCreateAliceSimple = driver.Transaction.makeCreateTransaction(
 )
 
 // Sign the transaction with private keys of Alice to fulfill it
+// Person wiht pub key in create transaction has to sign it
 const txCreateAliceSimpleSigned = driver.Transaction.signTransaction(txCreateAliceSimple, alice.privateKey)
 
 conn.postTransaction(txCreateAliceSimpleSigned)
@@ -62,7 +64,7 @@ conn.postTransaction(txCreateAliceSimpleSigned)
       ],
       0)
 
-    // Sign with alice's private key
+    // For a transfer transaction, both owners have to sign
     let txTransferCarlySigned = driver.Transaction.signTransaction(txTransferCarly, alice.privateKey, bob.privateKey)
     console.log('Posting signed transaction: ', txTransferCarlySigned)
 
@@ -73,5 +75,8 @@ conn.postTransaction(txCreateAliceSimpleSigned)
     console.log('Response from BDB server:', res)
     console.log('\n\n\nReached ENDDDDDDD')
     return conn.pollStatusAndFetchTransaction(res.id)
+  })
+  .then(res => {
+    console.log(res.inputs[0].fulfills)
   })
   .catch(err => console.log(err))

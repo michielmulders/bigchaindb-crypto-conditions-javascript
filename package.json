@@ -43,6 +43,7 @@
   "dependencies": {
     "base58": "^1.0.1",
     "bigchaindb-driver": "^0.3.0",
-    "five-bells-condition": "^5.0.1"
+    "five-bells-condition": "^5.0.1",
+    "js-sha3": "^0.6.1"
   }
 }
