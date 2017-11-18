@@ -1,6 +1,6 @@
 import * as driver from 'bigchaindb-driver'
 import * as sha3 from 'js-sha3'
-import base58 from 'bs58'
+import base58 from 'base58'
 
 const API_PATH = 'https://test.ipdb.io/api/v1/'
 const conn = new driver.Connection(API_PATH, { 
@@ -30,15 +30,14 @@ const txCreateAliceSimple = driver.Transaction.makeCreateTransaction(
 let fulfillmentFrom = driver.Transaction.makeEd25519Condition(alice.publicKey, false)
 let subConditionTo = driver.Transaction.makeEd25519Condition(carly.publicKey, false)
 fulfillmentFrom.sign(
-    new Buffer(driver.Transaction.serializeTransactionIntoCanonicalString(txCreateAliceSimple)),
+    new Buffer(driver.Transaction.serializeTransactionIntoCanonicalString(transaction)),
     new Buffer(base58.decode(alice.privateKey))
 )
 
 let fulfillment = driver.Transaction.makeThresholdCondition(1, undefined, false )
-fulfillment.addSubfulfillment(fulfillmentFrom.serializeUri());
-fulfillment.addSubcondition(subConditionTo.getConditionUri());
-txCreateAliceSimple.inputs[0].fulfillment = fulfillment.getConditionUri();
-
+fulfillment.addSubfulfillment(fulfillmentFrom);
+fulfillment.addCondition(subConditionTo);
+txCreateAliceSimple.inputs[0].fulfillment = fulfillment.serializeUri();
 
 // Sign the transaction with private key of Alice to fulfill it
 const txCreateAliceSimpleSigned = driver.Transaction.signTransaction(txCreateAliceSimple, alice.privateKey)
@@ -49,9 +48,8 @@ conn.postTransaction(txCreateAliceSimpleSigned)
   // Transfer bicycle because Carly (mother) found a buyer
   // Buyer is Bob
   .then(res => {
-    console.log('sdmqfjsmqifjsqmijfsmofjmsf\n\n\n')
-    console.log(res)
-    const txTransferBobSimple = driver.Transaction.makeTransferTransaction(
+    console.log('hierrrr')
+    const txTransferBob = driver.Transaction.makeTransferTransaction(
         txCreateAliceSimpleSigned,
         {'sell_price': '100 euro'},
         [
@@ -59,20 +57,7 @@ conn.postTransaction(txCreateAliceSimpleSigned)
         ],
         0)
 
-    let fulfillmentFrom = driver.Transaction.makeEd25519Condition(alice.publicKey, false)
-    let subConditionTo = driver.Transaction.makeEd25519Condition(carly.publicKey, false)
-    fulfillmentFrom.sign(
-        new Buffer(driver.Transaction.serializeTransactionIntoCanonicalString(txTransferBobSimple)),
-        new Buffer(base58.decode(alice.privateKey))
-    )
-    
-    let fulfillment = driver.Transaction.makeThresholdCondition(1, undefined, false )
-    fulfillment.addSubfulfillment(fulfillmentFrom.serializeUri());
-    fulfillment.addSubcondition(subConditionTo.getConditionUri());
-    // Change to outputs and obove two times addSubFulfillment
-    txTransferBobSimple.inputs[0].fulfillment = fulfillment.serializeUri();
-
-    const txTransferBobSigned = driver.Transaction.signTransaction(txTransferBobSimple, alice.privateKey)
+    const txTransferBobSigned = driver.Transaction.signTransaction(txTransferBob, alice.privateKey)
 
     return conn.postTransaction(txTransferBobSigned)
   })

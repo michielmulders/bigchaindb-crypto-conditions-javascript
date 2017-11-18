@@ -27,6 +27,9 @@ const txCreateAliceSimple = driver.Transaction.makeCreateTransaction(
   alice.publicKey
 )
 
+console.log(alice.privateKey)
+console.log(base58.decode(alice.privateKey))
+
 let fulfillmentFrom = driver.Transaction.makeEd25519Condition(alice.publicKey, false)
 let subConditionTo = driver.Transaction.makeEd25519Condition(carly.publicKey, false)
 fulfillmentFrom.sign(
@@ -36,9 +39,14 @@ fulfillmentFrom.sign(
 
 let fulfillment = driver.Transaction.makeThresholdCondition(1, undefined, false )
 fulfillment.addSubfulfillment(fulfillmentFrom.serializeUri());
+console.log(fulfillmentFrom.serializeUri());
+console.log('---------------');
 fulfillment.addSubcondition(subConditionTo.getConditionUri());
-txCreateAliceSimple.inputs[0].fulfillment = fulfillment.getConditionUri();
-
+console.log(subConditionTo.getConditionUri())
+console.log('---------------')
+txCreateAliceSimple.inputs[0].fulfillment = fulfillment.serializeUri();
+console.log(fulfillment.serializeUri())
+console.log('---------------')
 
 // Sign the transaction with private key of Alice to fulfill it
 const txCreateAliceSimpleSigned = driver.Transaction.signTransaction(txCreateAliceSimple, alice.privateKey)
@@ -49,9 +57,7 @@ conn.postTransaction(txCreateAliceSimpleSigned)
   // Transfer bicycle because Carly (mother) found a buyer
   // Buyer is Bob
   .then(res => {
-    console.log('sdmqfjsmqifjsqmijfsmofjmsf\n\n\n')
-    console.log(res)
-    const txTransferBobSimple = driver.Transaction.makeTransferTransaction(
+    const txTransferBob = driver.Transaction.makeTransferTransaction(
         txCreateAliceSimpleSigned,
         {'sell_price': '100 euro'},
         [
@@ -59,20 +65,7 @@ conn.postTransaction(txCreateAliceSimpleSigned)
         ],
         0)
 
-    let fulfillmentFrom = driver.Transaction.makeEd25519Condition(alice.publicKey, false)
-    let subConditionTo = driver.Transaction.makeEd25519Condition(carly.publicKey, false)
-    fulfillmentFrom.sign(
-        new Buffer(driver.Transaction.serializeTransactionIntoCanonicalString(txTransferBobSimple)),
-        new Buffer(base58.decode(alice.privateKey))
-    )
-    
-    let fulfillment = driver.Transaction.makeThresholdCondition(1, undefined, false )
-    fulfillment.addSubfulfillment(fulfillmentFrom.serializeUri());
-    fulfillment.addSubcondition(subConditionTo.getConditionUri());
-    // Change to outputs and obove two times addSubFulfillment
-    txTransferBobSimple.inputs[0].fulfillment = fulfillment.serializeUri();
-
-    const txTransferBobSigned = driver.Transaction.signTransaction(txTransferBobSimple, alice.privateKey)
+    const txTransferBobSigned = driver.Transaction.signTransaction(txTransferBob, alice.privateKey)
 
     return conn.postTransaction(txTransferBobSigned)
   })
